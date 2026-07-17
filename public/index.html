@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BulkSMS Sender — Ultrand.Tech</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<script src="/vendor/xlsx.full.min.js"></script>
+<script src="/vendor/jspdf.umd.min.js"></script>
+<style>
+:root {
+  --bg:         #0b0d11;
+  --surface:    #12151c;
+  --panel:      #181c26;
+  --border:     #252a38;
+  --border2:    #2e3548;
+  --accent:     #d4a843;
+  --accent2:    #f0c060;
+  --green:      #3dd68c;
+  --red:        #e05252;
+  --muted:      #4a5168;
+  --text:       #cdd3e0;
+  --text-dim:   #7a8399;
+  --mono:       'Space Mono', monospace;
+  --sans:       'DM Sans', sans-serif;
+  --radius:     6px;
+  --radius-lg:  12px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; line-height: 1.6; }
+::selection { background: var(--accent); color: #000; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+
+header {
+  border-bottom: 1px solid var(--border); padding: 0 2rem;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 58px; background: var(--surface); position: sticky; top: 0; z-index: 100;
+}
+.logo { font-family: var(--mono); font-size: .85rem; color: var(--accent); letter-spacing: .12em; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+.logo span { color: var(--text-dim); font-weight: 400; }
+
+#balance-chip {
+  font-family: var(--mono); font-size: .72rem;
+  background: rgba(212,168,67,.1); border: 1px solid rgba(212,168,67,.3);
+  color: var(--accent2); padding: 5px 12px; border-radius: 20px;
+  cursor: pointer; transition: all .2s; display: none;
+}
+#balance-chip:hover { background: rgba(212,168,67,.18); }
+
+main { display: flex; flex: 1; gap: 0; }
+
+.sidebar { width: 240px; flex-shrink: 0; border-right: 1px solid var(--border); background: var(--surface); padding: 1.5rem 0; }
+.step-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 .75rem; }
+.step-btn {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  border-radius: var(--radius); cursor: pointer; color: var(--text-dim);
+  font-size: .85rem; font-family: var(--sans); border: none; background: none;
+  text-align: left; transition: all .15s;
+}
+.step-btn .num {
+  font-family: var(--mono); font-size: .7rem; width: 22px; height: 22px;
+  border: 1px solid var(--border2); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s;
+}
+.step-btn.active { color: var(--accent); background: rgba(212,168,67,.07); }
+.step-btn.active .num { border-color: var(--accent); color: var(--accent); }
+.step-btn.done { color: var(--text); }
+.step-btn.done .num { background: rgba(61,214,140,.15); border-color: var(--green); color: var(--green); }
+.step-btn:hover:not(.active) { color: var(--text); background: rgba(255,255,255,.04); }
+.sidebar-divider { height: 1px; background: var(--border); margin: 1rem .75rem; }
+.sidebar-label { font-family: var(--mono); font-size: .65rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding: 0 1.5rem; margin-bottom: .5rem; }
+
+.content { flex: 1; padding: 2rem; overflow-y: auto; max-width: 1000px; }
+
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 1.25rem; overflow: hidden; }
+.panel-header { padding: .9rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.panel-title { font-family: var(--mono); font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+.panel-body { padding: 1.25rem; }
+
+.page-title { font-size: 1.35rem; font-weight: 600; color: var(--text); margin-bottom: .3rem; }
+.page-sub { color: var(--text-dim); font-size: .85rem; margin-bottom: 1.5rem; }
+
+.field { margin-bottom: 1rem; }
+label { display: block; font-size: .78rem; font-family: var(--mono); color: var(--text-dim); text-transform: uppercase; letter-spacing: .07em; margin-bottom: .45rem; }
+input[type=text], input[type=password], select, textarea {
+  width: 100%; background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--radius); color: var(--text); font-family: var(--sans);
+  font-size: .9rem; padding: 9px 13px; outline: none; transition: border-color .15s;
+}
+input[type=text]:focus, input[type=password]:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input::placeholder, textarea::placeholder { color: var(--muted); }
+select { cursor: pointer; } select option { background: var(--panel); }
+textarea { resize: vertical; min-height: 110px; font-family: var(--mono); font-size: .82rem; }
+.input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 20px; border-radius: var(--radius); font-family: var(--sans); font-size: .875rem; font-weight: 500; border: none; cursor: pointer; transition: all .15s; white-space: nowrap; }
+.btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border2); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 6px 14px; font-size: .8rem; }
+.btn-lg { padding: 12px 28px; font-size: 1rem; font-weight: 600; }
+.btn-row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+
+#drop-zone {
+  border: 2px dashed var(--border2); border-radius: var(--radius-lg); padding: 3rem 2rem;
+  text-align: center; cursor: pointer; transition: all .2s; background: var(--surface); position: relative;
+}
+#drop-zone:hover, #drop-zone.drag-over { border-color: var(--accent); background: rgba(212,168,67,.04); }
+#drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.upload-icon { font-size: 2.5rem; margin-bottom: .75rem; opacity: .5; }
+.upload-title { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: .35rem; }
+.upload-sub { font-size: .82rem; color: var(--text-dim); }
+
+.tag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: .68rem; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; letter-spacing: .06em; }
+.tag-amber { background: rgba(212,168,67,.12); color: var(--accent2); border: 1px solid rgba(212,168,67,.25); }
+.tag-green { background: rgba(61,214,140,.1); color: var(--green); border: 1px solid rgba(61,214,140,.2); }
+.tag-red   { background: rgba(224,82,82,.1);  color: var(--red);   border: 1px solid rgba(224,82,82,.2); }
+.tag-muted { background: rgba(74,81,104,.15); color: var(--text-dim); border: 1px solid var(--border2); }
+
+.table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+th { background: var(--surface); font-family: var(--mono); font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); padding: 9px 13px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 8px 13px; border-bottom: 1px solid var(--border); color: var(--text); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,.025); }
+
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-bottom: 1.25rem; }
+.stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; }
+.stat-label { font-family: var(--mono); font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: .3rem; }
+.stat-value { font-size: 1.6rem; font-weight: 600; font-family: var(--mono); color: var(--text); }
+.stat-value.green { color: var(--green); }
+.stat-value.amber { color: var(--accent2); }
+.stat-value.red   { color: var(--red); }
+
+.dashboard-actions { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+.dashboard-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin-bottom: 1.25rem; }
+.metric-card { background: linear-gradient(180deg, rgba(255,255,255,.03), transparent), var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.1rem; }
+.metric-label { font-family: var(--mono); font-size: .64rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: .35rem; }
+.metric-value { font-family: var(--mono); font-size: 1.45rem; font-weight: 600; color: var(--text); line-height: 1.1; }
+.metric-note { margin-top: .35rem; font-size: .75rem; color: var(--text-dim); }
+
+.delivery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .75rem; margin-bottom: 1.5rem; }
+.delivery-stat { background: linear-gradient(180deg, rgba(255,255,255,.03), transparent), var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem .75rem; text-align: center; }
+.delivery-stat .num { font-family: var(--mono); font-size: 1.5rem; font-weight: 700; color: var(--text); line-height: 1.1; }
+.delivery-stat.total .num { font-size: 2.1rem; color: var(--accent); }
+.delivery-stat .lbl { font-family: var(--mono); font-size: .6rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); margin-top: .4rem; }
+
+.chart-row { display: grid; grid-template-columns: minmax(200px, 280px) 1fr; gap: 2.5rem; align-items: center; }
+@media (max-width: 760px) { .chart-row { grid-template-columns: 1fr; } }
+.pie-wrap { display: flex; flex-direction: column; align-items: center; gap: 1.25rem; }
+.pie { width: 200px; height: 200px; border-radius: 50%; flex-shrink: 0; box-shadow: inset 0 0 0 1px var(--border); }
+.pie-legend { display: flex; flex-direction: column; gap: .45rem; width: 100%; }
+.legend-row { display: flex; align-items: center; gap: .55rem; font-size: .78rem; }
+.legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.legend-label { flex: 1; color: var(--text-dim); text-transform: capitalize; }
+.legend-value { font-family: var(--mono); color: var(--text); }
+
+.bars { display: flex; flex-direction: column; gap: .8rem; }
+.bar-top { display: flex; justify-content: space-between; font-size: .75rem; margin-bottom: .3rem; color: var(--text-dim); text-transform: capitalize; }
+.bar-top span:last-child { font-family: var(--mono); color: var(--text); }
+.bar-track { height: 9px; border-radius: 6px; background: rgba(255,255,255,.06); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 6px; transition: width .4s ease; }
+
+.char-info { display: flex; justify-content: space-between; margin-top: .4rem; font-size: .75rem; color: var(--text-dim); font-family: var(--mono); }
+.char-info .warn { color: var(--red); }
+
+.var-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+.var-chip { font-family: var(--mono); font-size: .72rem; background: rgba(212,168,67,.08); border: 1px solid rgba(212,168,67,.2); color: var(--accent); padding: 3px 9px; border-radius: 4px; cursor: pointer; transition: all .15s; user-select: none; appearance: none; -webkit-appearance: none; }
+.var-chip:hover { background: rgba(212,168,67,.18); }
+
+#progress-wrap { display: none; margin-bottom: 1rem; }
+.progress-bar-track { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 2px; width: 0%; transition: width .4s; }
+.progress-label { font-family: var(--mono); font-size: .72rem; color: var(--text-dim); margin-top: .4rem; }
+
+#toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: .5rem; }
+.toast { background: var(--panel); border: 1px solid var(--border2); border-radius: var(--radius); padding: 10px 16px; font-size: .82rem; color: var(--text); min-width: 240px; animation: slideIn .2s ease; display: flex; align-items: center; gap: 10px; }
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error   { border-left: 3px solid var(--red); }
+.toast.info    { border-left: 3px solid var(--accent); }
+@keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.hidden { display: none !important; }
+.mono { font-family: var(--mono); font-size: .8rem; }
+.text-dim { color: var(--text-dim); }
+hr { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+
+.toggle-row { display: flex; align-items: center; gap: 10px; }
+.toggle { position: relative; width: 36px; height: 20px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; inset: 0; background: var(--border2); border-radius: 20px; cursor: pointer; transition: .2s; }
+.slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; bottom: 3px; background: var(--text-dim); border-radius: 50%; transition: .2s; }
+input:checked + .slider { background: rgba(212,168,67,.3); }
+input:checked + .slider::before { transform: translateX(16px); background: var(--accent); }
+
+.page { display: none; }
+.page.active { display: block; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="2" y="2" width="7" height="7" rx="1.5" fill="#d4a843"/>
+      <rect x="11" y="2" width="7" height="7" rx="1.5" fill="#d4a843" opacity=".5"/>
+      <rect x="2" y="11" width="7" height="7" rx="1.5" fill="#d4a843" opacity=".5"/>
+      <rect x="11" y="11" width="7" height="7" rx="1.5" fill="#d4a843" opacity=".3"/>
+    </svg>
+    BulkSMS Sender <span>/ Ultrand.Tech</span>
+  </div>
+  <button id="balance-chip" onclick="checkBalance()">⚡ Credits: —</button>
+</header>
+
+<main>
+<nav class="sidebar">
+  <div class="sidebar-label">Workflow</div>
+  <div class="step-nav">
+    <button class="step-btn active" data-step="1" onclick="goStep(1)"><span class="num">1</span> Credentials</button>
+    <button class="step-btn" data-step="2" onclick="goStep(2)"><span class="num">2</span> Import File</button>
+    <button class="step-btn" data-step="3" onclick="goStep(3)"><span class="num">3</span> Map Columns</button>
+    <button class="step-btn" data-step="4" onclick="goStep(4)"><span class="num">4</span> Compose</button>
+    <button class="step-btn" data-step="5" onclick="goStep(5)"><span class="num">5</span> Preview & Send</button>
+    <button class="step-btn" data-step="6" onclick="goStep(6)"><span class="num">6</span> Results</button>
+    <button class="step-btn" data-step="7" onclick="goStep(7)"><span class="num">7</span> Dashboard</button>
+  </div>
+  <div class="sidebar-divider"></div>
+  <div class="sidebar-label">Session</div>
+  <div class="step-nav">
+    <button class="step-btn" onclick="resetAll()"><span class="num">↺</span> Reset</button>
+  </div>
+</nav>
+
+<div class="content">
+
+  <!-- STEP 1 -->
+  <div class="page active" id="page-1">
+    <div class="page-title">API Credentials</div>
+    <div class="page-sub">Enter your BulkSMS Token ID and Secret. Generate them under Settings → Advanced → API Tokens.</div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">BulkSMS Authentication</span>
+        <a href="https://www.bulksms.com/account/ui/index.html#/settings/advanced/api-tokens" target="_blank" style="font-size:.75rem;color:var(--accent);text-decoration:none;">↗ Get Tokens</a>
+      </div>
+      <div class="panel-body">
+        <div class="input-row">
+          <div class="field"><label>Token ID</label><input type="text" id="token-id" placeholder="e.g. 7-AbCdEfGh..." /></div>
+          <div class="field"><label>Token Secret</label><input type="password" id="token-secret" placeholder="Your token secret" /></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveCredentials()">Save & Verify →</button>
+          <button class="btn btn-ghost btn-sm" onclick="checkBalance()">Check Balance</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Phone Number Format</span></div>
+      <div class="panel-body">
+        <div class="field">
+          <label>Default Country Prefix</label>
+          <select id="country-prefix">
+            <option value="27">🇿🇦 South Africa (+27)</option>
+            <option value="1">🇺🇸 United States (+1)</option>
+            <option value="44">🇬🇧 United Kingdom (+44)</option>
+            <option value="254">🇰🇪 Kenya (+254)</option>
+            <option value="234">🇳🇬 Nigeria (+234)</option>
+            <option value="263">🇿🇼 Zimbabwe (+263)</option>
+            <option value="267">🇧🇼 Botswana (+267)</option>
+          </select>
+        </div>
+        <p class="text-dim" style="font-size:.8rem;">Numbers starting with 0 will be auto-converted using this prefix. Numbers with a + are used as-is.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="page" id="page-2">
+    <div class="page-title">Import Contacts</div>
+    <div class="page-sub">Upload an XLSX or CSV file. Row 1 must be headers. Phone numbers should be in one column.</div>
+    <div class="panel">
+      <div class="panel-body">
+        <div id="drop-zone">
+          <input type="file" id="file-input" accept=".xlsx,.xls,.csv" onchange="handleFile(this.files[0])" />
+          <div class="upload-icon">📊</div>
+          <div class="upload-title">Drop your file here or click to browse</div>
+          <div class="upload-sub">Supports .xlsx · .xls · .csv — Max 10 MB</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel hidden" id="parse-result">
+      <div class="panel-header">
+        <span class="panel-title">File Parsed</span>
+        <div style="display:flex;gap:.5rem;align-items:center;">
+          <span class="tag tag-green" id="row-count-tag">— rows</span>
+          <span class="tag tag-muted" id="col-count-tag">— cols</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" id="preview-table-wrap"></div>
+        <div style="margin-top:1rem;" class="btn-row">
+          <button class="btn btn-primary" onclick="goStep(3)">Map Columns →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="page" id="page-3">
+    <div class="page-title">Map Columns</div>
+    <div class="page-sub">Tell the system which column contains phone numbers. Other columns can be used as variables in your message.</div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Column Configuration</span></div>
+      <div class="panel-body">
+        <div class="field"><label>Phone Number Column *</label><select id="phone-col"></select></div>
+        <hr />
+        <div id="variable-columns">
+          <label>Message Variables (all other columns)</label>
+          <p class="text-dim" style="font-size:.8rem;margin-bottom:.75rem;">Use in your message as <span class="mono" style="color:var(--accent);">{{ColumnName}}</span></p>
+          <div class="var-chips" id="col-chips"></div>
+        </div>
+        <div style="margin-top:1.25rem;" class="btn-row">
+          <button class="btn btn-primary" onclick="goStep(4)">Write Message →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="page" id="page-4">
+    <div class="page-title">Compose Message</div>
+    <div class="page-sub">Write your SMS. Click a variable chip to insert it. 160 chars = 1 credit; 153 chars per additional segment.</div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Message Template</span></div>
+      <div class="panel-body">
+        <div class="field">
+          <label>Insert Variable</label>
+          <div class="var-chips" id="compose-chips"></div>
+        </div>
+        <div class="field">
+          <label>Message Body</label>
+          <textarea id="message-body" placeholder="Hi {{Patient Name}}, your appointment is confirmed..." oninput="updateCharCount()"></textarea>
+          <div class="char-info">
+            <span id="char-count">0 / 160</span>
+            <span id="sms-segments">1 SMS per recipient</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Live Preview — First Row</span></div>
+      <div class="panel-body">
+        <div id="live-preview" class="mono" style="color:var(--text);white-space:pre-wrap;min-height:40px;"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Options</span></div>
+      <div class="panel-body">
+        <div class="toggle-row">
+          <label class="toggle"><input type="checkbox" id="test-mode" /><span class="slider"></span></label>
+          <div>
+            <div style="font-weight:500;">Test Mode (Dry Run)</div>
+            <div class="text-dim" style="font-size:.8rem;">Preview what will be sent without consuming credits.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-lg" onclick="goStep(5)">Preview & Send →</button>
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="page" id="page-5">
+    <div class="page-title">Preview & Send</div>
+    <div class="page-sub">Review your batch before firing. Each row shows the actual message that will be sent.</div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Recipients</div><div class="stat-value amber" id="stat-total">—</div></div>
+      <div class="stat-card"><div class="stat-label">SMS Credits Est.</div><div class="stat-value" id="stat-credits">—</div></div>
+      <div class="stat-card"><div class="stat-label">Segments</div><div class="stat-value" id="stat-segments">—</div></div>
+      <div class="stat-card"><div class="stat-label">Mode</div><div class="stat-value" id="stat-mode" style="font-size:1rem;padding-top:.3rem;">—</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Message Batch Preview</span>
+        <span class="tag tag-muted" id="showing-label">Showing first 50</span>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" id="batch-preview-table"></div>
+      </div>
+    </div>
+    <div id="progress-wrap">
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="prog-fill"></div></div>
+      <div class="progress-label" id="prog-label">Preparing...</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-lg" id="send-btn" onclick="sendMessages()">🚀 Send All Messages</button>
+      <button class="btn btn-ghost" onclick="goStep(4)">← Edit Message</button>
+    </div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="page" id="page-6">
+    <div class="page-title">Send Results</div>
+    <div class="page-sub">Delivery report from BulkSMS API.</div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Sent</div><div class="stat-value green" id="res-sent">—</div></div>
+      <div class="stat-card"><div class="stat-label">Errors</div><div class="stat-value red" id="res-errors">—</div></div>
+      <div class="stat-card"><div class="stat-label">Total Credits</div><div class="stat-value" id="res-credits">—</div></div>
+      <div class="stat-card"><div class="stat-label">Mode</div><div class="stat-value" id="res-mode" style="font-size:.9rem;padding-top:.4rem;">—</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Delivery Log</span>
+        <button class="btn btn-ghost btn-sm" onclick="exportResults()">↓ Export CSV</button>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" id="results-table"></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="resetAll()">Send Another Batch</button>
+      <button class="btn btn-ghost" onclick="goStep(7)">Open Dashboard</button>
+    </div>
+  </div>
+
+  <!-- STEP 7 -->
+  <div class="page" id="page-7">
+    <div class="page-title">Statistics Dashboard</div>
+    <div class="page-sub">A live summary of the current import and the latest send run. Export the report as PDF or Excel.</div>
+    <div class="dashboard-actions">
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="exportDashboardPdf()">Export PDF</button>
+        <button class="btn btn-ghost" onclick="exportDashboardExcel()">Export Excel</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Delivery Breakdown</span>
+        <span class="tag tag-muted" id="delivery-mode-tag">—</span>
+      </div>
+      <div class="panel-body" id="delivery-breakdown-panel"></div>
+    </div>
+    <div class="dashboard-grid" id="dashboard-metrics"></div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Campaign Snapshot</span>
+        <span class="tag tag-muted" id="dashboard-source">—</span>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" id="dashboard-summary-table"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Sample Messages</span>
+        <span class="tag tag-muted" id="dashboard-sample-label">—</span>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" id="dashboard-sample-table"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Latest Send Result</span>
+        <span class="tag tag-muted" id="dashboard-result-label">—</span>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" id="dashboard-result-table"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</main>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────
+const state = {
+  tokenId: '', tokenSecret: '', countryPrefix: '27',
+  rows: [], columns: [], phoneCol: '', template: '',
+  testMode: false, results: null, dashboard: null,
+};
+const API = '';
+
+// ── NAVIGATION ─────────────────────────────────────────────────
+function goStep(n) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(`page-${n}`).classList.add('active');
+  document.querySelectorAll('.step-btn').forEach(b => {
+    const s = parseInt(b.dataset.step);
+    b.classList.remove('active','done');
+    if (s === n) b.classList.add('active');
+    if (s < n)  b.classList.add('done');
+  });
+  if (n === 3) buildColumnSelects();
+  if (n === 4) buildComposeChips();
+  if (n === 5) buildBatchPreview();
+  if (n === 7) buildDashboard();
+}
+
+// ── CREDENTIALS ────────────────────────────────────────────────
+function saveCredentials() {
+  state.tokenId       = document.getElementById('token-id').value.trim();
+  state.tokenSecret   = document.getElementById('token-secret').value.trim();
+  state.countryPrefix = document.getElementById('country-prefix').value;
+  if (!state.tokenId || !state.tokenSecret) { toast('Enter both Token ID and Token Secret', 'error'); return; }
+  toast('Credentials saved ✓', 'success');
+  document.getElementById('balance-chip').style.display = 'flex';
+  goStep(2);
+}
+
+async function checkBalance() {
+  if (!state.tokenId) { toast('Save credentials first', 'error'); return; }
+  const chip = document.getElementById('balance-chip');
+  chip.textContent = '⚡ Checking...';
+  try {
+    const r = await fetch(`${API}/api/balance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tokenId: state.tokenId, tokenSecret: state.tokenSecret }),
+    });
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); chip.textContent = '⚡ Error'; return; }
+    chip.style.display = 'flex';
+    chip.textContent = `⚡ ${parseFloat(d.credits).toFixed(2)} credits`;
+    toast(`Balance: ${d.credits} credits`, 'info');
+  } catch(e) { toast('Balance check failed', 'error'); }
+}
+
+// ── FILE UPLOAD ────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0]; if (file) handleFile(file);
+});
+
+async function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['xlsx','xls','csv'].includes(ext)) { toast('Unsupported file type', 'error'); return; }
+  toast('Parsing file...', 'info');
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const r = await fetch(`${API}/api/parse`, { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); return; }
+    state.rows = d.rows; state.columns = d.columns; state.results = null; state.dashboard = null;
+    document.getElementById('row-count-tag').textContent = `${d.totalRows} rows`;
+    document.getElementById('col-count-tag').textContent = `${d.columns.length} cols`;
+    document.getElementById('parse-result').classList.remove('hidden');
+    renderPreviewTable(d.preview, d.columns);
+    toast(`Loaded ${d.totalRows} contacts from ${d.sheetName}`, 'success');
+  } catch(e) { toast('Upload failed: ' + e.message, 'error'); }
+}
+
+function renderPreviewTable(rows, cols) {
+  const wrap = document.getElementById('preview-table-wrap');
+  if (!rows.length) { wrap.innerHTML = '<p class="text-dim">No data</p>'; return; }
+  let html = '<table><thead><tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach(row => { html += '<tr>' + cols.map(c => `<td title="${esc(String(row[c]??''))}">${esc(String(row[c]??''))}</td>`).join('') + '</tr>'; });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ── COLUMN MAPPING ─────────────────────────────────────────────
+function buildColumnSelects() {
+  if (!state.columns.length) return;
+  const sel = document.getElementById('phone-col');
+  sel.innerHTML = state.columns.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  const autoPhone = state.columns.find(c => /phone|mobile|cell|number|msisdn/i.test(c) && !/centre|center|contact/i.test(c));
+  if (autoPhone) sel.value = autoPhone;
+  document.getElementById('col-chips').innerHTML = state.columns.map(c =>
+    `<span class="var-chip" title="{{${esc(c)}}}">${esc(c)}</span>`
+  ).join('');
+}
+
+function getCurrentTemplate() {
+  return document.getElementById('message-body')?.value.trim() || state.template || '';
+}
+
+function getCurrentPhoneCol() {
+  return document.getElementById('phone-col')?.value || state.phoneCol || '';
+}
+
+function buildMessageModels(rows = state.rows, template = getCurrentTemplate(), phoneCol = getCurrentPhoneCol()) {
+  if (!rows.length || !template) return [];
+  return rows.map(row => {
+    const body = interpolate(template, row);
+    const len = body.length;
+    const seg = len <= 160 ? 1 : Math.ceil(len / 153);
+    return {
+      to: phoneCol ? normalizePhone(String(row[phoneCol] ?? ''), state.countryPrefix) : '',
+      body,
+      len,
+      seg,
+      row,
+    };
+  });
+}
+
+// ── COMPOSE ────────────────────────────────────────────────────
+function buildComposeChips() {
+  document.getElementById('compose-chips').innerHTML = state.columns.map(c =>
+    `<button type="button" class="var-chip" data-col="${esc(c)}">{{${esc(c)}}}</button>`
+  ).join('');
+  document.getElementById('compose-chips').querySelectorAll('button[data-col]').forEach(btn => {
+    btn.addEventListener('click', () => insertVar(btn.dataset.col));
+  });
+  updateCharCount(); updateLivePreview();
+}
+
+function insertVar(col) {
+  const ta = document.getElementById('message-body');
+  const v  = `{{${col}}}`;
+  const s  = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s) + v + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + v.length;
+  ta.focus(); updateCharCount(); updateLivePreview();
+}
+
+function updateCharCount() {
+  const body = document.getElementById('message-body').value;
+  const len  = body.length;
+  const seg  = len <= 160 ? 1 : Math.ceil(len / 153);
+  const el   = document.getElementById('char-count');
+  el.textContent = `${len} / ${seg === 1 ? 160 : seg * 153}`;
+  el.className   = len > 160 ? 'warn' : '';
+  document.getElementById('sms-segments').textContent = `${seg} SMS segment${seg > 1 ? 's' : ''} per recipient`;
+  updateLivePreview();
+}
+
+function updateLivePreview() {
+  const tmpl = document.getElementById('message-body').value;
+  const row  = state.rows[0];
+  if (!row || !tmpl) { document.getElementById('live-preview').textContent = '—'; return; }
+  document.getElementById('live-preview').textContent = interpolate(tmpl, row);
+}
+
+/**
+ * FIX v1.1: was /\{\{(\w+)\}\}/g
+ * \w+ does NOT match spaces — "{{Patient Name}}" and "{{Centre Phone}}" were never resolved.
+ * Changed to [^}]+ which matches any character except } including spaces and special chars.
+ */
+function interpolate(tmpl, row) {
+  return tmpl.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
+    const k = key.trim();
+    const match = Object.keys(row).find(col => col.trim().toLowerCase() === k.toLowerCase());
+    return match !== undefined ? String(row[match] ?? '') : `{{${key}}}`;
+  });
+}
+
+// ── BATCH PREVIEW ──────────────────────────────────────────────
+function buildBatchPreview() {
+  state.template  = getCurrentTemplate();
+  state.phoneCol  = getCurrentPhoneCol();
+  state.testMode  = document.getElementById('test-mode').checked;
+
+  const msgs = buildMessageModels();
+
+  const totalCredits = msgs.reduce((sum, msg) => sum + msg.seg, 0);
+  const segments = msgs.map(msg => msg.seg);
+  const minSegments = segments.length ? Math.min(...segments) : 0;
+  const maxSegments = segments.length ? Math.max(...segments) : 0;
+  document.getElementById('stat-total').textContent    = msgs.length;
+  document.getElementById('stat-credits').textContent  = totalCredits;
+  document.getElementById('stat-segments').textContent = segments.length
+    ? (minSegments === maxSegments ? String(maxSegments) : `${minSegments}–${maxSegments}`)
+    : '—';
+  document.getElementById('stat-mode').innerHTML = state.testMode
+    ? '<span class="tag tag-amber">TEST</span>' : '<span class="tag tag-green">LIVE</span>';
+
+  const preview = msgs.slice(0, 50);
+  document.getElementById('showing-label').textContent = msgs.length > 50
+    ? `Showing first 50 of ${msgs.length}` : `${msgs.length} recipients`;
+
+  let html = '<table><thead><tr><th>#</th><th>To</th><th>Message</th><th>Segments</th></tr></thead><tbody>';
+  preview.forEach((m, i) => {
+    html += `<tr><td class="mono">${i+1}</td><td class="mono">${esc(m.to)}</td><td>${esc(m.body.slice(0,90))}${m.body.length>90?'…':''}</td><td class="mono">${m.seg}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('batch-preview-table').innerHTML = html;
+}
+
+// ── SEND ───────────────────────────────────────────────────────
+async function sendMessages() {
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true; btn.textContent = '⏳ Sending...';
+  document.getElementById('progress-wrap').style.display = 'block';
+  setProg(10, 'Authenticating...');
+  try {
+    setProg(30, 'Sending batch to BulkSMS...');
+    const r = await fetch(`${API}/api/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tokenId: state.tokenId, tokenSecret: state.tokenSecret,
+        phoneColumn: state.phoneCol, messageTemplate: state.template,
+        rows: state.rows, testMode: state.testMode,
+        countryPrefix: state.countryPrefix,
+      }),
+    });
+    setProg(80, 'Processing response...');
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); resetSendBtn(); return; }
+    state.results = d;
+    setProg(100, 'Done!');
+    setTimeout(() => { buildResults(d); goStep(6); }, 600);
+  } catch(e) { toast('Send failed: ' + e.message, 'error'); resetSendBtn(); }
+}
+
+function resetSendBtn() {
+  const btn = document.getElementById('send-btn');
+  btn.disabled = false; btn.textContent = '🚀 Send All Messages';
+  document.getElementById('progress-wrap').style.display = 'none';
+}
+function setProg(pct, label) {
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-label').textContent = label;
+}
+
+// ── RESULTS ────────────────────────────────────────────────────
+function buildResults(d) {
+  if (d.mode === 'test') {
+    document.getElementById('res-sent').textContent    = d.count;
+    document.getElementById('res-errors').textContent  = 0;
+    document.getElementById('res-credits').textContent = '—';
+    document.getElementById('res-mode').innerHTML = '<span class="tag tag-amber">TEST (no credits used)</span>';
+    let html = '<table><thead><tr><th>#</th><th>To</th><th>Message</th></tr></thead><tbody>';
+    d.preview.forEach((m, i) => {
+      html += `<tr><td class="mono">${i+1}</td><td class="mono">${esc(m.to)}</td><td>${esc(m.body.slice(0,100))}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('results-table').innerHTML = html;
+    return;
+  }
+  const totalCredits = (d.results||[]).reduce((s, r) => s + (parseFloat(r.creditCost)||0), 0);
+  document.getElementById('res-sent').textContent    = d.totalSent;
+  document.getElementById('res-errors').textContent  = d.totalErrors;
+  document.getElementById('res-credits').textContent = totalCredits.toFixed(2);
+  document.getElementById('res-mode').innerHTML = '<span class="tag tag-green">LIVE</span>';
+  let html = '<table><thead><tr><th>#</th><th>To</th><th>Status</th><th>Credits</th><th>Message ID</th></tr></thead><tbody>';
+  (d.results||[]).forEach((r, i) => {
+    html += `<tr><td class="mono">${i+1}</td><td class="mono">${esc(r.to)}</td><td><span class="tag tag-green">${esc(r.status)}</span></td><td class="mono">${r.creditCost??'—'}</td><td class="mono" style="font-size:.7rem;">${esc(r.messageId??'—')}</td></tr>`;
+  });
+  (d.errors||[]).forEach((e, i) => {
+    html += `<tr><td class="mono">${(d.results||[]).length+i+1}</td><td class="mono">${esc(e.to)}</td><td><span class="tag tag-red">ERROR</span></td><td class="mono">—</td><td style="color:var(--red);font-size:.75rem;">${esc(e.error)}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('results-table').innerHTML = html;
+  if (d.totalSent > 0) toast(`✅ ${d.totalSent} messages sent!`, 'success');
+  if (d.totalErrors > 0) toast(`⚠ ${d.totalErrors} errors`, 'error');
+}
+
+// ── DELIVERY BREAKDOWN (pie + bar) ───────────────────────────────
+const DELIVERY_COLORS = ['#3ecf8e', '#d4a843', '#4fa3f7', '#e0575b', '#8b8fa3', '#c17fd6'];
+
+function computeDeliveryBreakdown() {
+  const results = state.results;
+  if (!results) return null;
+
+  const buckets = new Map();
+
+  if (results.mode === 'test') {
+    buckets.set('Previewed (test mode)', results.count || 0);
+  } else {
+    (results.results || []).forEach(r => {
+      const label = String(r.status || 'SENT').replace(/_/g, ' ').toLowerCase();
+      buckets.set(label, (buckets.get(label) || 0) + 1);
+    });
+    (results.errors || []).forEach(e => {
+      const msg = String(e.error || '').toLowerCase();
+      let label = 'failed (api error)';
+      if (msg.includes('unroutable'))              label = 'unroutable';
+      else if (msg.includes('block'))               label = 'blocked';
+      else if (msg.includes('validation failed'))   label = 'invalid number / body';
+      buckets.set(label, (buckets.get(label) || 0) + 1);
+    });
+  }
+
+  const total = [...buckets.values()].reduce((a, b) => a + b, 0);
+  if (!total) return null;
+
+  const entries = [...buckets.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, count], i) => ({
+      label, count,
+      pct: (count / total) * 100,
+      color: DELIVERY_COLORS[i % DELIVERY_COLORS.length],
+    }));
+
+  return { total, entries, mode: results.mode };
+}
+
+function renderDeliveryBreakdown() {
+  const panel = document.getElementById('delivery-breakdown-panel');
+  const modeTag = document.getElementById('delivery-mode-tag');
+  const breakdown = computeDeliveryBreakdown();
+
+  if (!breakdown) {
+    modeTag.textContent = '—';
+    panel.innerHTML = '<p class="text-dim">Send a batch (live or test) to see the delivery breakdown here.</p>';
+    return;
+  }
+
+  const { total, entries, mode } = breakdown;
+  modeTag.textContent = mode === 'live' ? 'Live run' : 'Test run';
+
+  let angleAcc = 0;
+  const gradientStops = entries.map(e => {
+    const start = angleAcc;
+    angleAcc += (e.pct / 100) * 360;
+    return `${e.color} ${start}deg ${angleAcc}deg`;
+  }).join(', ');
+
+  const maxCount = Math.max(...entries.map(e => e.count));
+  const topStats = entries.slice(0, 4);
+
+  panel.innerHTML = `
+    <div class="delivery-grid">
+      <div class="delivery-stat total">
+        <div class="num">${total}</div>
+        <div class="lbl">Total ${mode === 'live' ? 'Sent' : 'Previewed'}</div>
+      </div>
+      ${topStats.map(e => `
+        <div class="delivery-stat">
+          <div class="num" style="color:${e.color}">${e.pct.toFixed(0)}%</div>
+          <div class="lbl">${esc(e.label)}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="chart-row">
+      <div class="pie-wrap">
+        <div class="pie" style="background: conic-gradient(${gradientStops});"></div>
+        <div class="pie-legend">
+          ${entries.map(e => `
+            <div class="legend-row">
+              <span class="legend-swatch" style="background:${e.color}"></span>
+              <span class="legend-label">${esc(e.label)}</span>
+              <span class="legend-value">${e.count} (${e.pct.toFixed(0)}%)</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="bars">
+        ${entries.map(e => `
+          <div class="bar-row">
+            <div class="bar-top"><span>${esc(e.label)}</span><span>${e.count}</span></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${(e.count / maxCount * 100).toFixed(1)}%; background:${e.color};"></div></div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function buildDashboard() {
+  renderDeliveryBreakdown();
+  const template = getCurrentTemplate();
+  const phoneCol = getCurrentPhoneCol();
+  const messages = buildMessageModels(state.rows, template, phoneCol);
+  const results = state.results;
+  const totalCredits = messages.reduce((sum, msg) => sum + msg.seg, 0);
+  const segmentValues = messages.map(msg => msg.seg);
+  const minSegments = segmentValues.length ? Math.min(...segmentValues) : 0;
+  const maxSegments = segmentValues.length ? Math.max(...segmentValues) : 0;
+  const missingPhones = phoneCol
+    ? state.rows.filter(row => !String(row[phoneCol] ?? '').trim()).length
+    : 0;
+  const sentCount = results?.mode === 'test' ? results.count : results?.totalSent || 0;
+  const errorCount = results?.mode === 'test' ? 0 : results?.totalErrors || 0;
+  const successRate = sentCount ? (((sentCount - errorCount) / sentCount) * 100).toFixed(1) : '—';
+  const avgSegments = messages.length ? (totalCredits / messages.length).toFixed(2) : '—';
+
+  state.dashboard = {
+    rows: state.rows.length,
+    columns: state.columns.length,
+    phoneCol: phoneCol || '—',
+    templateLength: template.length,
+    totalCredits,
+    minSegments,
+    maxSegments,
+    avgSegments,
+    missingPhones,
+    sentCount,
+    errorCount,
+    successRate,
+    mode: results?.mode === 'live' ? 'LIVE' : (results?.mode === 'test' ? 'TEST' : 'DRAFT'),
+  };
+
+  document.getElementById('dashboard-source').textContent = template ? 'Current batch' : 'Import only';
+  document.getElementById('dashboard-sample-label').textContent = `${Math.min(messages.length, 10)} samples`;
+  document.getElementById('dashboard-result-label').textContent = results ? (results.mode === 'test' ? 'Test run' : 'Live run') : 'No send run yet';
+
+  const metricCards = [
+    ['Contacts', state.dashboard.rows, `${missingPhones} missing phone values`],
+    ['Columns', state.dashboard.columns, `Phone column: ${state.dashboard.phoneCol}`],
+    ['Est. Credits', messages.length ? totalCredits : '—', messages.length ? `${avgSegments} avg segments` : 'No message body yet'],
+    ['Success Rate', successRate === '—' ? '—' : `${successRate}%`, results ? `${sentCount} sent / ${errorCount} errors` : 'No send run yet'],
+  ];
+
+  document.getElementById('dashboard-metrics').innerHTML = metricCards.map(([label, value, note]) => `
+    <div class="metric-card">
+      <div class="metric-label">${esc(label)}</div>
+      <div class="metric-value">${esc(value)}</div>
+      <div class="metric-note">${esc(note)}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('dashboard-summary-table').innerHTML = `
+    <table>
+      <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+      <tbody>
+        <tr><td>Total contacts</td><td class="mono">${state.dashboard.rows}</td></tr>
+        <tr><td>Detected columns</td><td class="mono">${state.dashboard.columns}</td></tr>
+        <tr><td>Selected phone column</td><td class="mono">${esc(state.dashboard.phoneCol)}</td></tr>
+        <tr><td>Template length</td><td class="mono">${state.dashboard.templateLength}</td></tr>
+        <tr><td>Estimated credits</td><td class="mono">${messages.length ? totalCredits : '—'}</td></tr>
+        <tr><td>Segment range</td><td class="mono">${messages.length ? (minSegments === maxSegments ? String(maxSegments) : `${minSegments}–${maxSegments}`) : '—'}</td></tr>
+        <tr><td>Average segments</td><td class="mono">${state.dashboard.avgSegments}</td></tr>
+        <tr><td>Missing phone values</td><td class="mono">${missingPhones}</td></tr>
+      </tbody>
+    </table>
+  `;
+
+  const sampleMessages = messages.slice(0, 10);
+  document.getElementById('dashboard-sample-table').innerHTML = sampleMessages.length
+    ? `
+      <table>
+        <thead><tr><th>#</th><th>To</th><th>Segments</th><th>Message</th></tr></thead>
+        <tbody>
+          ${sampleMessages.map((m, i) => `<tr><td class="mono">${i + 1}</td><td class="mono">${esc(m.to || '—')}</td><td class="mono">${m.seg}</td><td>${esc(m.body.slice(0, 90))}${m.body.length > 90 ? '…' : ''}</td></tr>`).join('')}
+        </tbody>
+      </table>
+    `
+    : '<p class="text-dim">Load a file and compose a message to see sample output here.</p>';
+
+  document.getElementById('dashboard-result-table').innerHTML = results
+    ? (results.mode === 'test'
+      ? `
+        <table>
+          <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>Mode</td><td class="mono">TEST</td></tr>
+            <tr><td>Messages previewed</td><td class="mono">${results.count}</td></tr>
+            <tr><td>Credits used</td><td class="mono">0</td></tr>
+          </tbody>
+        </table>
+      `
+      : `
+        <table>
+          <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td>Mode</td><td class="mono">LIVE</td></tr>
+            <tr><td>Sent</td><td class="mono">${results.totalSent}</td></tr>
+            <tr><td>Errors</td><td class="mono">${results.totalErrors}</td></tr>
+            <tr><td>Total credits</td><td class="mono">${(results.results || []).reduce((sum, item) => sum + (parseFloat(item.creditCost) || 0), 0).toFixed(2)}</td></tr>
+          </tbody>
+        </table>
+      `)
+    : '<p class="text-dim">No send run has been completed yet.</p>';
+}
+
+function collectDashboardExportData() {
+  const template = getCurrentTemplate();
+  const phoneCol = getCurrentPhoneCol();
+  const messages = buildMessageModels(state.rows, template, phoneCol);
+  const summary = [
+    ['Total contacts', state.rows.length],
+    ['Detected columns', state.columns.length],
+    ['Selected phone column', phoneCol || '—'],
+    ['Template length', template.length],
+    ['Estimated credits', messages.reduce((sum, msg) => sum + msg.seg, 0)],
+    ['Sample messages', Math.min(messages.length, 10)],
+    ['Mode', state.results?.mode === 'live' ? 'LIVE' : (state.results?.mode === 'test' ? 'TEST' : 'DRAFT')],
+  ];
+  const contacts = messages.map((msg, index) => {
+    const row = { '#': index + 1, To: msg.to, Segments: msg.seg, Message: msg.body };
+    state.columns.forEach(col => { row[col] = msg.row[col] ?? ''; });
+    return row;
+  });
+  const results = state.results?.mode === 'live'
+    ? [
+        ...(state.results.results || []).map((item, index) => ({
+          '#': index + 1,
+          To: item.to,
+          Status: item.status,
+          Credits: item.creditCost ?? '',
+          'Message ID': item.messageId ?? '',
+          Error: '',
+        })),
+        ...(state.results.errors || []).map((item, index) => ({
+          '#': (state.results.results || []).length + index + 1,
+          To: item.to,
+          Status: 'ERROR',
+          Credits: '',
+          'Message ID': '',
+          Error: item.error,
+        })),
+      ]
+    : (state.results?.mode === 'test'
+      ? (state.results.preview || []).map((item, index) => ({
+          '#': index + 1,
+          To: item.to,
+          Status: 'TEST',
+          Credits: '',
+          'Message ID': '',
+          Error: '',
+          Message: item.body,
+        }))
+      : []);
+  return { template, phoneCol, summary, contacts, results, messages };
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function exportDashboardExcel() {
+  if (!window.XLSX) { toast('Excel export library is still loading', 'error'); return; }
+  const data = collectDashboardExportData();
+  const workbook = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(workbook, window.XLSX.utils.aoa_to_sheet([['Metric', 'Value'], ...data.summary]), 'Summary');
+  window.XLSX.utils.book_append_sheet(workbook, window.XLSX.utils.json_to_sheet(data.contacts), 'Contacts');
+  if (data.results.length) {
+    window.XLSX.utils.book_append_sheet(workbook, window.XLSX.utils.json_to_sheet(data.results), 'Results');
+  }
+  const buffer = window.XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'bulksms-dashboard.xlsx');
+}
+
+function exportDashboardPdf() {
+  const jsPdfApi = window.jspdf?.jsPDF;
+  if (!jsPdfApi) { toast('PDF export library is still loading', 'error'); return; }
+  const data = collectDashboardExportData();
+  const doc = new jsPdfApi({ unit: 'pt', format: 'a4' });
+  const margin = 40;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const contentWidth = pageWidth - margin * 2;
+  let y = margin;
+
+  const ensureSpace = needed => {
+    if (y + needed > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  const addTitle = text => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text(text, margin, y);
+    y += 22;
+  };
+
+  const addSection = title => {
+    ensureSpace(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(title, margin, y);
+    y += 14;
+  };
+
+  const addText = (label, value) => {
+    ensureSpace(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`${label}:`, margin, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(value), margin + 135, y);
+    y += 16;
+  };
+
+  const addWrapped = text => {
+    const lines = doc.splitTextToSize(text, contentWidth);
+    ensureSpace(lines.length * 12 + 4);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(lines, margin, y);
+    y += lines.length * 12;
+  };
+
+  addTitle('BulkSMS Sender Dashboard');
+  addWrapped(`Generated ${new Date().toLocaleString()} | Phone column: ${data.phoneCol || '—'}`);
+
+  addSection('Summary');
+  data.summary.forEach(([label, value]) => addText(label, value));
+
+  if (data.messages.length) {
+    addSection('Sample Messages');
+    data.messages.slice(0, 10).forEach((msg, index) => {
+      addWrapped(`${index + 1}. ${msg.to || '—'} | ${msg.seg} seg | ${msg.body.slice(0, 90)}${msg.body.length > 90 ? '…' : ''}`);
+    });
+  }
+
+  if (data.results.length) {
+    addSection('Results');
+    data.results.slice(0, 10).forEach((row, index) => {
+      addWrapped(`${index + 1}. ${row.To || '—'} | ${row.Status || '—'} | ${row.Credits || '—'} | ${row.Error || row['Message ID'] || ''}`);
+    });
+  }
+
+  doc.save('bulksms-dashboard.pdf');
+}
+
+// ── EXPORT CSV ─────────────────────────────────────────────────
+function exportResults() {
+  const d = state.results; if (!d) return;
+  const rows = [['To','Status','MessageId','CreditCost','Error']];
+  (d.results||[]).forEach(r => rows.push([r.to, r.status, r.messageId||'', r.creditCost||'', '']));
+  (d.errors||[]).forEach(e => rows.push([e.to, 'ERROR', '', '', e.error]));
+  const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href = url; a.download = 'bulksms-results.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── UTILS ──────────────────────────────────────────────────────
+
+/**
+ * FIX v1.1: handles 9-digit numbers (leading 0 stripped by Excel)
+ */
+function normalizePhone(raw, prefix) {
+  if (!raw) return raw;
+  let p = String(raw).replace(/\s+/g,'').replace(/[^\d+]/g,'');
+  if (p.startsWith('+')) return p;
+  if (p.startsWith(prefix) && p.length === prefix.length + 9) p = '0' + p.slice(prefix.length);
+  if (p.length === 9 && !p.startsWith('0')) p = '0' + p;
+  if (p.startsWith('0') && p.length === 10) return '+' + prefix + p.slice(1);
+  return '+' + p;
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function toast(msg, type='info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div'); t.className = `toast ${type}`;
+  const icons = { success:'✔', error:'✖', info:'ℹ' };
+  const icon = document.createElement('span');
+  icon.textContent = icons[type] || '';
+  const text = document.createElement('span');
+  text.textContent = String(msg);
+  t.appendChild(icon);
+  t.appendChild(text);
+  c.appendChild(t); setTimeout(() => t.remove(), 4000);
+}
+
+function resetAll() {
+  Object.assign(state, { rows:[], columns:[], phoneCol:'', template:'', results:null, dashboard:null, testMode:false });
+  document.getElementById('file-input').value = '';
+  document.getElementById('message-body').value = '';
+  document.getElementById('parse-result').classList.add('hidden');
+  document.getElementById('progress-wrap').style.display = 'none';
+  resetSendBtn(); goStep(1);
+}
+</script>
+</body>
+</html>

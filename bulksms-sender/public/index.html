@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BulkSMS Sender — Ultrand.Tech</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg:         #0b0d11;
+  --surface:    #12151c;
+  --panel:      #181c26;
+  --border:     #252a38;
+  --border2:    #2e3548;
+  --accent:     #d4a843;
+  --accent2:    #f0c060;
+  --green:      #3dd68c;
+  --red:        #e05252;
+  --muted:      #4a5168;
+  --text:       #cdd3e0;
+  --text-dim:   #7a8399;
+  --mono:       'Space Mono', monospace;
+  --sans:       'DM Sans', sans-serif;
+  --radius:     6px;
+  --radius-lg:  12px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 15px; }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; line-height: 1.6; }
+::selection { background: var(--accent); color: #000; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+
+header {
+  border-bottom: 1px solid var(--border); padding: 0 2rem;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 58px; background: var(--surface); position: sticky; top: 0; z-index: 100;
+}
+.logo { font-family: var(--mono); font-size: .85rem; color: var(--accent); letter-spacing: .12em; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+.logo span { color: var(--text-dim); font-weight: 400; }
+
+#balance-chip {
+  font-family: var(--mono); font-size: .72rem;
+  background: rgba(212,168,67,.1); border: 1px solid rgba(212,168,67,.3);
+  color: var(--accent2); padding: 5px 12px; border-radius: 20px;
+  cursor: pointer; transition: all .2s; display: none;
+}
+#balance-chip:hover { background: rgba(212,168,67,.18); }
+
+main { display: flex; flex: 1; gap: 0; }
+
+.sidebar { width: 240px; flex-shrink: 0; border-right: 1px solid var(--border); background: var(--surface); padding: 1.5rem 0; }
+.step-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 .75rem; }
+.step-btn {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  border-radius: var(--radius); cursor: pointer; color: var(--text-dim);
+  font-size: .85rem; font-family: var(--sans); border: none; background: none;
+  text-align: left; transition: all .15s;
+}
+.step-btn .num {
+  font-family: var(--mono); font-size: .7rem; width: 22px; height: 22px;
+  border: 1px solid var(--border2); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s;
+}
+.step-btn.active { color: var(--accent); background: rgba(212,168,67,.07); }
+.step-btn.active .num { border-color: var(--accent); color: var(--accent); }
+.step-btn.done { color: var(--text); }
+.step-btn.done .num { background: rgba(61,214,140,.15); border-color: var(--green); color: var(--green); }
+.step-btn:hover:not(.active) { color: var(--text); background: rgba(255,255,255,.04); }
+.sidebar-divider { height: 1px; background: var(--border); margin: 1rem .75rem; }
+.sidebar-label { font-family: var(--mono); font-size: .65rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding: 0 1.5rem; margin-bottom: .5rem; }
+
+.content { flex: 1; padding: 2rem; overflow-y: auto; max-width: 1000px; }
+
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 1.25rem; overflow: hidden; }
+.panel-header { padding: .9rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.panel-title { font-family: var(--mono); font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
+.panel-body { padding: 1.25rem; }
+
+.page-title { font-size: 1.35rem; font-weight: 600; color: var(--text); margin-bottom: .3rem; }
+.page-sub { color: var(--text-dim); font-size: .85rem; margin-bottom: 1.5rem; }
+
+.field { margin-bottom: 1rem; }
+label { display: block; font-size: .78rem; font-family: var(--mono); color: var(--text-dim); text-transform: uppercase; letter-spacing: .07em; margin-bottom: .45rem; }
+input[type=text], input[type=password], select, textarea {
+  width: 100%; background: var(--surface); border: 1px solid var(--border2);
+  border-radius: var(--radius); color: var(--text); font-family: var(--sans);
+  font-size: .9rem; padding: 9px 13px; outline: none; transition: border-color .15s;
+}
+input[type=text]:focus, input[type=password]:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input::placeholder, textarea::placeholder { color: var(--muted); }
+select { cursor: pointer; } select option { background: var(--panel); }
+textarea { resize: vertical; min-height: 110px; font-family: var(--mono); font-size: .82rem; }
+.input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 20px; border-radius: var(--radius); font-family: var(--sans); font-size: .875rem; font-weight: 500; border: none; cursor: pointer; transition: all .15s; white-space: nowrap; }
+.btn-primary { background: var(--accent); color: #000; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border2); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm { padding: 6px 14px; font-size: .8rem; }
+.btn-lg { padding: 12px 28px; font-size: 1rem; font-weight: 600; }
+.btn-row { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; }
+
+#drop-zone {
+  border: 2px dashed var(--border2); border-radius: var(--radius-lg); padding: 3rem 2rem;
+  text-align: center; cursor: pointer; transition: all .2s; background: var(--surface); position: relative;
+}
+#drop-zone:hover, #drop-zone.drag-over { border-color: var(--accent); background: rgba(212,168,67,.04); }
+#drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.upload-icon { font-size: 2.5rem; margin-bottom: .75rem; opacity: .5; }
+.upload-title { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: .35rem; }
+.upload-sub { font-size: .82rem; color: var(--text-dim); }
+
+.tag { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: .68rem; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; letter-spacing: .06em; }
+.tag-amber { background: rgba(212,168,67,.12); color: var(--accent2); border: 1px solid rgba(212,168,67,.25); }
+.tag-green { background: rgba(61,214,140,.1); color: var(--green); border: 1px solid rgba(61,214,140,.2); }
+.tag-red   { background: rgba(224,82,82,.1);  color: var(--red);   border: 1px solid rgba(224,82,82,.2); }
+.tag-muted { background: rgba(74,81,104,.15); color: var(--text-dim); border: 1px solid var(--border2); }
+
+.table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+th { background: var(--surface); font-family: var(--mono); font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); padding: 9px 13px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 8px 13px; border-bottom: 1px solid var(--border); color: var(--text); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,.025); }
+
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-bottom: 1.25rem; }
+.stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; }
+.stat-label { font-family: var(--mono); font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin-bottom: .3rem; }
+.stat-value { font-size: 1.6rem; font-weight: 600; font-family: var(--mono); color: var(--text); }
+.stat-value.green { color: var(--green); }
+.stat-value.amber { color: var(--accent2); }
+.stat-value.red   { color: var(--red); }
+
+.char-info { display: flex; justify-content: space-between; margin-top: .4rem; font-size: .75rem; color: var(--text-dim); font-family: var(--mono); }
+.char-info .warn { color: var(--red); }
+
+.var-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+.var-chip { font-family: var(--mono); font-size: .72rem; background: rgba(212,168,67,.08); border: 1px solid rgba(212,168,67,.2); color: var(--accent); padding: 3px 9px; border-radius: 4px; cursor: pointer; transition: all .15s; user-select: none; }
+.var-chip:hover { background: rgba(212,168,67,.18); }
+
+#progress-wrap { display: none; margin-bottom: 1rem; }
+.progress-bar-track { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 2px; width: 0%; transition: width .4s; }
+.progress-label { font-family: var(--mono); font-size: .72rem; color: var(--text-dim); margin-top: .4rem; }
+
+#toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: .5rem; }
+.toast { background: var(--panel); border: 1px solid var(--border2); border-radius: var(--radius); padding: 10px 16px; font-size: .82rem; color: var(--text); min-width: 240px; animation: slideIn .2s ease; display: flex; align-items: center; gap: 10px; }
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error   { border-left: 3px solid var(--red); }
+.toast.info    { border-left: 3px solid var(--accent); }
+@keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.hidden { display: none !important; }
+.mono { font-family: var(--mono); font-size: .8rem; }
+.text-dim { color: var(--text-dim); }
+hr { border: none; border-top: 1px solid var(--border); margin: 1.25rem 0; }
+
+.toggle-row { display: flex; align-items: center; gap: 10px; }
+.toggle { position: relative; width: 36px; height: 20px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; inset: 0; background: var(--border2); border-radius: 20px; cursor: pointer; transition: .2s; }
+.slider::before { content: ''; position: absolute; width: 14px; height: 14px; left: 3px; bottom: 3px; background: var(--text-dim); border-radius: 50%; transition: .2s; }
+input:checked + .slider { background: rgba(212,168,67,.3); }
+input:checked + .slider::before { transform: translateX(16px); background: var(--accent); }
+
+.page { display: none; }
+.page.active { display: block; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="2" y="2" width="7" height="7" rx="1.5" fill="#d4a843"/>
+      <rect x="11" y="2" width="7" height="7" rx="1.5" fill="#d4a843" opacity=".5"/>
+      <rect x="2" y="11" width="7" height="7" rx="1.5" fill="#d4a843" opacity=".5"/>
+      <rect x="11" y="11" width="7" height="7" rx="1.5" fill="#d4a843" opacity=".3"/>
+    </svg>
+    BulkSMS Sender <span>/ Ultrand.Tech</span>
+  </div>
+  <button id="balance-chip" onclick="checkBalance()">⚡ Credits: —</button>
+</header>
+
+<main>
+<nav class="sidebar">
+  <div class="sidebar-label">Workflow</div>
+  <div class="step-nav">
+    <button class="step-btn active" data-step="1" onclick="goStep(1)"><span class="num">1</span> Credentials</button>
+    <button class="step-btn" data-step="2" onclick="goStep(2)"><span class="num">2</span> Import File</button>
+    <button class="step-btn" data-step="3" onclick="goStep(3)"><span class="num">3</span> Map Columns</button>
+    <button class="step-btn" data-step="4" onclick="goStep(4)"><span class="num">4</span> Compose</button>
+    <button class="step-btn" data-step="5" onclick="goStep(5)"><span class="num">5</span> Preview & Send</button>
+    <button class="step-btn" data-step="6" onclick="goStep(6)"><span class="num">6</span> Results</button>
+  </div>
+  <div class="sidebar-divider"></div>
+  <div class="sidebar-label">Session</div>
+  <div class="step-nav">
+    <button class="step-btn" onclick="resetAll()"><span class="num">↺</span> Reset</button>
+  </div>
+</nav>
+
+<div class="content">
+
+  <!-- STEP 1 -->
+  <div class="page active" id="page-1">
+    <div class="page-title">API Credentials</div>
+    <div class="page-sub">Enter your BulkSMS Token ID and Secret. Generate them under Settings → Advanced → API Tokens.</div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">BulkSMS Authentication</span>
+        <a href="https://www.bulksms.com/account/ui/index.html#/settings/advanced/api-tokens" target="_blank" style="font-size:.75rem;color:var(--accent);text-decoration:none;">↗ Get Tokens</a>
+      </div>
+      <div class="panel-body">
+        <div class="input-row">
+          <div class="field"><label>Token ID</label><input type="text" id="token-id" placeholder="e.g. 7-AbCdEfGh..." /></div>
+          <div class="field"><label>Token Secret</label><input type="password" id="token-secret" placeholder="Your token secret" /></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveCredentials()">Save & Verify →</button>
+          <button class="btn btn-ghost btn-sm" onclick="checkBalance()">Check Balance</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel" id="diag-panel">
+      <div class="panel-header"><span class="panel-title">🔬 Send Test Message (Diagnostic)</span></div>
+      <div class="panel-body">
+        <p class="text-dim" style="font-size:.8rem;margin-bottom:1rem;">Send one real SMS to verify your credentials and number format before a bulk run.</p>
+        <div class="input-row">
+          <div class="field"><label>Test Phone Number</label><input type="text" id="diag-to" placeholder="+27821234567 or 0821234567" /></div>
+          <div class="field"><label>Test Message</label><input type="text" id="diag-body" placeholder="BulkSMS test from Ultrand.Tech" value="BulkSMS test from Ultrand.Tech" /></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-sm" onclick="sendDiagnostic()">Send Test SMS</button>
+        </div>
+        <div id="diag-result" style="margin-top:1rem;font-family:var(--mono);font-size:.75rem;display:none;"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Phone Number Format</span></div>
+      <div class="panel-body">
+        <div class="field">
+          <label>Default Country Prefix</label>
+          <select id="country-prefix">
+            <option value="27">🇿🇦 South Africa (+27)</option>
+            <option value="1">🇺🇸 United States (+1)</option>
+            <option value="44">🇬🇧 United Kingdom (+44)</option>
+            <option value="254">🇰🇪 Kenya (+254)</option>
+            <option value="234">🇳🇬 Nigeria (+234)</option>
+            <option value="263">🇿🇼 Zimbabwe (+263)</option>
+            <option value="267">🇧🇼 Botswana (+267)</option>
+          </select>
+        </div>
+        <p class="text-dim" style="font-size:.8rem;">Numbers starting with 0 will be auto-converted using this prefix. Numbers with a + are used as-is.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="page" id="page-2">
+    <div class="page-title">Import Contacts</div>
+    <div class="page-sub">Upload an XLSX or CSV file. Row 1 must be headers. Phone numbers should be in one column.</div>
+    <div class="panel">
+      <div class="panel-body">
+        <div id="drop-zone">
+          <input type="file" id="file-input" accept=".xlsx,.xls,.csv" onchange="handleFile(this.files[0])" />
+          <div class="upload-icon">📊</div>
+          <div class="upload-title">Drop your file here or click to browse</div>
+          <div class="upload-sub">Supports .xlsx · .xls · .csv — Max 10 MB</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel hidden" id="parse-result">
+      <div class="panel-header">
+        <span class="panel-title">File Parsed</span>
+        <div style="display:flex;gap:.5rem;align-items:center;">
+          <span class="tag tag-green" id="row-count-tag">— rows</span>
+          <span class="tag tag-muted" id="col-count-tag">— cols</span>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" id="preview-table-wrap"></div>
+        <div style="margin-top:1rem;" class="btn-row">
+          <button class="btn btn-primary" onclick="goStep(3)">Map Columns →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="page" id="page-3">
+    <div class="page-title">Map Columns</div>
+    <div class="page-sub">Tell the system which column contains phone numbers. Other columns can be used as variables in your message.</div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Column Configuration</span></div>
+      <div class="panel-body">
+        <div class="field"><label>Phone Number Column *</label><select id="phone-col"></select></div>
+        <hr />
+        <div id="variable-columns">
+          <label>Message Variables (all other columns)</label>
+          <p class="text-dim" style="font-size:.8rem;margin-bottom:.75rem;">Use in your message as <span class="mono" style="color:var(--accent);">{{ColumnName}}</span></p>
+          <div class="var-chips" id="col-chips"></div>
+        </div>
+        <div style="margin-top:1.25rem;" class="btn-row">
+          <button class="btn btn-primary" onclick="goStep(4)">Write Message →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="page" id="page-4">
+    <div class="page-title">Compose Message</div>
+    <div class="page-sub">Write your SMS. Click a variable chip to insert it. 160 chars = 1 credit; 153 chars per additional segment.</div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Message Template</span></div>
+      <div class="panel-body">
+        <div class="field">
+          <label>Insert Variable</label>
+          <div class="var-chips" id="compose-chips"></div>
+        </div>
+        <div class="field">
+          <label>Message Body</label>
+          <textarea id="message-body" placeholder="Hi {{Patient Name}}, your appointment is confirmed..." oninput="updateCharCount()"></textarea>
+          <div class="char-info">
+            <span id="char-count">0 / 160</span>
+            <span id="sms-segments">1 SMS per recipient</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Live Preview — First Row</span></div>
+      <div class="panel-body">
+        <div id="live-preview" class="mono" style="color:var(--text);white-space:pre-wrap;min-height:40px;"></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Options</span></div>
+      <div class="panel-body">
+        <div class="toggle-row">
+          <label class="toggle"><input type="checkbox" id="test-mode" /><span class="slider"></span></label>
+          <div>
+            <div style="font-weight:500;">Test Mode (Dry Run)</div>
+            <div class="text-dim" style="font-size:.8rem;">Preview what will be sent without consuming credits.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-lg" onclick="goStep(5)">Preview & Send →</button>
+    </div>
+  </div>
+
+  <!-- STEP 5 -->
+  <div class="page" id="page-5">
+    <div class="page-title">Preview & Send</div>
+    <div class="page-sub">Review your batch before firing. Each row shows the actual message that will be sent.</div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Recipients</div><div class="stat-value amber" id="stat-total">—</div></div>
+      <div class="stat-card"><div class="stat-label">SMS Credits Est.</div><div class="stat-value" id="stat-credits">—</div></div>
+      <div class="stat-card"><div class="stat-label">Segments</div><div class="stat-value" id="stat-segments">—</div></div>
+      <div class="stat-card"><div class="stat-label">Mode</div><div class="stat-value" id="stat-mode" style="font-size:1rem;padding-top:.3rem;">—</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Message Batch Preview</span>
+        <span class="tag tag-muted" id="showing-label">Showing first 50</span>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" id="batch-preview-table"></div>
+      </div>
+    </div>
+    <div id="progress-wrap">
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="prog-fill"></div></div>
+      <div class="progress-label" id="prog-label">Preparing...</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-lg" id="send-btn" onclick="sendMessages()">🚀 Send All Messages</button>
+      <button class="btn btn-ghost" onclick="goStep(4)">← Edit Message</button>
+    </div>
+  </div>
+
+  <!-- STEP 6 -->
+  <div class="page" id="page-6">
+    <div class="page-title">Send Results</div>
+    <div class="page-sub">Delivery report from BulkSMS API.</div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Sent</div><div class="stat-value green" id="res-sent">—</div></div>
+      <div class="stat-card"><div class="stat-label">Errors</div><div class="stat-value red" id="res-errors">—</div></div>
+      <div class="stat-card"><div class="stat-label">Total Credits</div><div class="stat-value" id="res-credits">—</div></div>
+      <div class="stat-card"><div class="stat-label">Mode</div><div class="stat-value" id="res-mode" style="font-size:.9rem;padding-top:.4rem;">—</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Delivery Log</span>
+        <button class="btn btn-ghost btn-sm" onclick="exportResults()">↓ Export CSV</button>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" id="results-table"></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="resetAll()">Send Another Batch</button>
+    </div>
+  </div>
+
+</div>
+</main>
+</div>
+
+<div id="toast-container"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────
+const state = {
+  tokenId: '', tokenSecret: '', countryPrefix: '27',
+  rows: [], columns: [], phoneCol: '', template: '',
+  testMode: false, results: null,
+};
+const API = '';
+
+// ── DIAGNOSTIC ─────────────────────────────────────────────────
+async function sendDiagnostic() {
+  if (!state.tokenId) { toast('Save credentials first', 'error'); return; }
+  const to   = document.getElementById('diag-to').value.trim();
+  const body = document.getElementById('diag-body').value.trim();
+  if (!to || !body) { toast('Enter a test number and message', 'error'); return; }
+
+  const result = document.getElementById('diag-result');
+  result.style.display = 'block';
+  result.style.color = 'var(--text-dim)';
+  result.textContent = '⏳ Sending test message...';
+
+  try {
+    const r = await fetch(`${API}/api/test-send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tokenId: state.tokenId, tokenSecret: state.tokenSecret, to, body }),
+    });
+    const d = await r.json();
+    if (d.success) {
+      result.style.color = 'var(--green)';
+      result.textContent = '✅ SUCCESS — Message accepted by BulkSMS. Check your phone.\n\n' + JSON.stringify(d.data, null, 2);
+      toast('Test SMS sent successfully!', 'success');
+    } else {
+      result.style.color = 'var(--red)';
+      result.textContent = `❌ FAILED (HTTP ${d.httpStatus})\n\nBulkSMS error: ${d.bulkSMSError}\n\nFull response:\n${JSON.stringify(d.rawResponse, null, 2)}`;
+      toast(`Test failed: ${d.bulkSMSError}`, 'error');
+    }
+  } catch(e) {
+    result.style.color = 'var(--red)';
+    result.textContent = '❌ Network error: ' + e.message;
+  }
+}
+
+// ── NAVIGATION ─────────────────────────────────────────────────
+function goStep(n) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(`page-${n}`).classList.add('active');
+  document.querySelectorAll('.step-btn').forEach(b => {
+    const s = parseInt(b.dataset.step);
+    b.classList.remove('active','done');
+    if (s === n) b.classList.add('active');
+    if (s < n)  b.classList.add('done');
+  });
+  if (n === 3) buildColumnSelects();
+  if (n === 4) buildComposeChips();
+  if (n === 5) buildBatchPreview();
+}
+
+// ── CREDENTIALS ────────────────────────────────────────────────
+function saveCredentials() {
+  state.tokenId       = document.getElementById('token-id').value.trim();
+  state.tokenSecret   = document.getElementById('token-secret').value.trim();
+  state.countryPrefix = document.getElementById('country-prefix').value;
+  if (!state.tokenId || !state.tokenSecret) { toast('Enter both Token ID and Token Secret', 'error'); return; }
+  toast('Credentials saved ✓', 'success');
+  document.getElementById('balance-chip').style.display = 'flex';
+  goStep(2);
+}
+
+async function checkBalance() {
+  if (!state.tokenId) { toast('Save credentials first', 'error'); return; }
+  const chip = document.getElementById('balance-chip');
+  chip.textContent = '⚡ Checking...';
+  try {
+    const r = await fetch(`${API}/api/balance?tokenId=${encodeURIComponent(state.tokenId)}&tokenSecret=${encodeURIComponent(state.tokenSecret)}`);
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); chip.textContent = '⚡ Error'; return; }
+    chip.style.display = 'flex';
+    chip.textContent = `⚡ ${parseFloat(d.credits).toFixed(2)} credits`;
+    toast(`Balance: ${d.credits} credits`, 'info');
+  } catch(e) { toast('Balance check failed', 'error'); }
+}
+
+// ── FILE UPLOAD ────────────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0]; if (file) handleFile(file);
+});
+
+async function handleFile(file) {
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (!['xlsx','xls','csv'].includes(ext)) { toast('Unsupported file type', 'error'); return; }
+  toast('Parsing file...', 'info');
+  const fd = new FormData(); fd.append('file', file);
+  try {
+    const r = await fetch(`${API}/api/parse`, { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); return; }
+    state.rows = d.rows; state.columns = d.columns;
+    document.getElementById('row-count-tag').textContent = `${d.totalRows} rows`;
+    document.getElementById('col-count-tag').textContent = `${d.columns.length} cols`;
+    document.getElementById('parse-result').classList.remove('hidden');
+    renderPreviewTable(d.preview, d.columns);
+    toast(`Loaded ${d.totalRows} contacts from ${d.sheetName}`, 'success');
+  } catch(e) { toast('Upload failed: ' + e.message, 'error'); }
+}
+
+function renderPreviewTable(rows, cols) {
+  const wrap = document.getElementById('preview-table-wrap');
+  if (!rows.length) { wrap.innerHTML = '<p class="text-dim">No data</p>'; return; }
+  let html = '<table><thead><tr>' + cols.map(c => `<th>${esc(c)}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach(row => { html += '<tr>' + cols.map(c => `<td title="${esc(String(row[c]??''))}">${esc(String(row[c]??''))}</td>`).join('') + '</tr>'; });
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ── COLUMN MAPPING ─────────────────────────────────────────────
+function buildColumnSelects() {
+  if (!state.columns.length) return;
+  const sel = document.getElementById('phone-col');
+  sel.innerHTML = state.columns.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  const autoPhone = state.columns.find(c => /phone|mobile|cell|number|msisdn/i.test(c) && !/centre|center|contact/i.test(c));
+  if (autoPhone) sel.value = autoPhone;
+  document.getElementById('col-chips').innerHTML = state.columns.map(c =>
+    `<span class="var-chip" title="{{${c}}}">${c}</span>`
+  ).join('');
+}
+
+// ── COMPOSE ────────────────────────────────────────────────────
+function buildComposeChips() {
+  document.getElementById('compose-chips').innerHTML = state.columns.map(c =>
+    `<span class="var-chip" onclick="insertVar('${c.replace(/'/g,"\\'")}')">{{${c}}}</span>`
+  ).join('');
+  updateCharCount(); updateLivePreview();
+}
+
+function insertVar(col) {
+  const ta = document.getElementById('message-body');
+  const v  = `{{${col}}}`;
+  const s  = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s) + v + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + v.length;
+  ta.focus(); updateCharCount(); updateLivePreview();
+}
+
+function updateCharCount() {
+  const body = document.getElementById('message-body').value;
+  const len  = body.length;
+  const seg  = len <= 160 ? 1 : Math.ceil(len / 153);
+  const el   = document.getElementById('char-count');
+  el.textContent = `${len} / ${seg === 1 ? 160 : seg * 153}`;
+  el.className   = len > 160 ? 'warn' : '';
+  document.getElementById('sms-segments').textContent = `${seg} SMS segment${seg > 1 ? 's' : ''} per recipient`;
+  updateLivePreview();
+}
+
+function updateLivePreview() {
+  const tmpl = document.getElementById('message-body').value;
+  const row  = state.rows[0];
+  if (!row || !tmpl) { document.getElementById('live-preview').textContent = '—'; return; }
+  document.getElementById('live-preview').textContent = interpolate(tmpl, row);
+}
+
+/**
+ * FIX v1.1: was /\{\{(\w+)\}\}/g
+ * \w+ does NOT match spaces — "{{Patient Name}}" and "{{Centre Phone}}" were never resolved.
+ * Changed to [^}]+ which matches any character except } including spaces and special chars.
+ */
+function interpolate(tmpl, row) {
+  return tmpl.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
+    const k = key.trim();
+    const match = Object.keys(row).find(col => col.trim().toLowerCase() === k.toLowerCase());
+    return match !== undefined ? String(row[match] ?? '') : `{{${key}}}`;
+  });
+}
+
+// ── BATCH PREVIEW ──────────────────────────────────────────────
+function buildBatchPreview() {
+  state.template  = document.getElementById('message-body').value.trim();
+  state.phoneCol  = document.getElementById('phone-col').value;
+  state.testMode  = document.getElementById('test-mode').checked;
+
+  const msgs = state.rows.map(row => ({
+    to:   normalizePhone(String(row[state.phoneCol] ?? ''), state.countryPrefix),
+    body: interpolate(state.template, row),
+  }));
+
+  const seg = state.template.length <= 160 ? 1 : Math.ceil(state.template.length / 153);
+  document.getElementById('stat-total').textContent    = msgs.length;
+  document.getElementById('stat-credits').textContent  = msgs.length * seg;
+  document.getElementById('stat-segments').textContent = seg;
+  document.getElementById('stat-mode').innerHTML = state.testMode
+    ? '<span class="tag tag-amber">TEST</span>' : '<span class="tag tag-green">LIVE</span>';
+
+  const preview = msgs.slice(0, 50);
+  document.getElementById('showing-label').textContent = msgs.length > 50
+    ? `Showing first 50 of ${msgs.length}` : `${msgs.length} recipients`;
+
+  let html = '<table><thead><tr><th>#</th><th>To</th><th>Message</th></tr></thead><tbody>';
+  preview.forEach((m, i) => {
+    html += `<tr><td class="mono">${i+1}</td><td class="mono">${esc(m.to)}</td><td>${esc(m.body.slice(0,90))}${m.body.length>90?'…':''}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('batch-preview-table').innerHTML = html;
+}
+
+// ── SEND ───────────────────────────────────────────────────────
+async function sendMessages() {
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true; btn.textContent = '⏳ Sending...';
+  document.getElementById('progress-wrap').style.display = 'block';
+  setProg(10, 'Authenticating...');
+  try {
+    setProg(30, 'Sending batch to BulkSMS...');
+    const r = await fetch(`${API}/api/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tokenId: state.tokenId, tokenSecret: state.tokenSecret,
+        phoneColumn: state.phoneCol, messageTemplate: state.template,
+        rows: state.rows, testMode: state.testMode,
+        countryPrefix: state.countryPrefix,
+      }),
+    });
+    setProg(80, 'Processing response...');
+    const d = await r.json();
+    if (d.error) { toast(d.error, 'error'); resetSendBtn(); return; }
+    state.results = d;
+    setProg(100, 'Done!');
+    setTimeout(() => { buildResults(d); goStep(6); }, 600);
+  } catch(e) { toast('Send failed: ' + e.message, 'error'); resetSendBtn(); }
+}
+
+function resetSendBtn() {
+  const btn = document.getElementById('send-btn');
+  btn.disabled = false; btn.textContent = '🚀 Send All Messages';
+  document.getElementById('progress-wrap').style.display = 'none';
+}
+function setProg(pct, label) {
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-label').textContent = label;
+}
+
+// ── RESULTS ────────────────────────────────────────────────────
+function buildResults(d) {
+  if (d.mode === 'test') {
+    document.getElementById('res-sent').textContent    = d.count;
+    document.getElementById('res-errors').textContent  = 0;
+    document.getElementById('res-credits').textContent = '—';
+    document.getElementById('res-mode').innerHTML = '<span class="tag tag-amber">TEST (no credits used)</span>';
+    let html = '<table><thead><tr><th>#</th><th>To</th><th>Message</th></tr></thead><tbody>';
+    d.preview.forEach((m, i) => {
+      html += `<tr><td class="mono">${i+1}</td><td class="mono">${esc(m.to)}</td><td>${esc(m.body.slice(0,100))}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('results-table').innerHTML = html;
+    return;
+  }
+  const totalCredits = (d.results||[]).reduce((s, r) => s + (parseFloat(r.creditCost)||0), 0);
+  document.getElementById('res-sent').textContent    = d.totalSent;
+  document.getElementById('res-errors').textContent  = d.totalErrors;
+  document.getElementById('res-credits').textContent = totalCredits.toFixed(2);
+  document.getElementById('res-mode').innerHTML = '<span class="tag tag-green">LIVE</span>';
+  let html = '<table><thead><tr><th>#</th><th>To</th><th>Status</th><th>Credits</th><th>Message ID</th></tr></thead><tbody>';
+  (d.results||[]).forEach((r, i) => {
+    html += `<tr><td class="mono">${i+1}</td><td class="mono">${esc(r.to)}</td><td><span class="tag tag-green">${esc(r.status)}</span></td><td class="mono">${r.creditCost??'—'}</td><td class="mono" style="font-size:.7rem;">${esc(r.messageId??'—')}</td></tr>`;
+  });
+  (d.errors||[]).forEach((e, i) => {
+    html += `<tr><td class="mono">${(d.results||[]).length+i+1}</td><td class="mono">${esc(e.to)}</td><td><span class="tag tag-red">ERROR</span></td><td class="mono">—</td><td style="color:var(--red);font-size:.75rem;">${esc(e.error)}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('results-table').innerHTML = html;
+  if (d.totalSent > 0) toast(`✅ ${d.totalSent} messages sent!`, 'success');
+  if (d.totalErrors > 0) toast(`⚠ ${d.totalErrors} errors`, 'error');
+}
+
+// ── EXPORT CSV ─────────────────────────────────────────────────
+function exportResults() {
+  const d = state.results; if (!d) return;
+  const rows = [['To','Status','MessageId','CreditCost','Error']];
+  (d.results||[]).forEach(r => rows.push([r.to, r.status, r.messageId||'', r.creditCost||'', '']));
+  (d.errors||[]).forEach(e => rows.push([e.to, 'ERROR', '', '', e.error]));
+  const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href = url; a.download = 'bulksms-results.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── UTILS ──────────────────────────────────────────────────────
+
+/**
+ * FIX v1.1: handles 9-digit numbers (leading 0 stripped by Excel)
+ */
+function normalizePhone(raw, prefix) {
+  if (!raw) return raw;
+  let p = String(raw).replace(/\s+/g,'').replace(/[^\d+]/g,'');
+  if (p.startsWith('+')) return p;
+  if (p.startsWith(prefix) && p.length === prefix.length + 9) p = '0' + p.slice(prefix.length);
+  if (p.length === 9 && !p.startsWith('0')) p = '0' + p;
+  if (p.startsWith('0') && p.length === 10) return '+' + prefix + p.slice(1);
+  return '+' + p;
+}
+
+function esc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function toast(msg, type='info') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div'); t.className = `toast ${type}`;
+  const icons = { success:'✔', error:'✖', info:'ℹ' };
+  t.innerHTML = `<span>${icons[type]||''}</span><span>${msg}</span>`;
+  c.appendChild(t); setTimeout(() => t.remove(), 4000);
+}
+
+function resetAll() {
+  Object.assign(state, { rows:[], columns:[], phoneCol:'', template:'', results:null, testMode:false });
+  document.getElementById('file-input').value = '';
+  document.getElementById('message-body').value = '';
+  document.getElementById('parse-result').classList.add('hidden');
+  document.getElementById('progress-wrap').style.display = 'none';
+  resetSendBtn(); goStep(1);
+}
+</script>
+</body>
+</html>
