@@ -203,6 +203,18 @@ input:checked + .slider::before { transform: translateX(16px); background: var(-
 
 .page { display: none; }
 .page.active { display: block; }
+
+.header-right { display: flex; align-items: center; gap: 14px; }
+#user-button { display: flex; align-items: center; min-width: 28px; }
+
+#auth-gate {
+  position: fixed; inset: 0; z-index: 1000; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1.5rem; padding: 16px; overflow-y: auto;
+}
+#auth-gate.hidden { display: none; }
+#auth-gate .logo { font-size: 1rem; }
+#auth-status { color: var(--text-dim); font-size: .85rem; text-align: center; max-width: 420px; }
 </style>
 </head>
 <body>
@@ -218,7 +230,10 @@ input:checked + .slider::before { transform: translateX(16px); background: var(-
     </svg>
     BulkSMS Sender <span>/ Ultrand.Tech</span>
   </div>
-  <button id="balance-chip" onclick="checkBalance()">⚡ Credits: —</button>
+  <div class="header-right">
+    <button id="balance-chip" onclick="checkBalance()">⚡ Credits: —</button>
+    <div id="user-button"></div>
+  </div>
 </header>
 
 <main>
@@ -236,6 +251,7 @@ input:checked + .slider::before { transform: translateX(16px); background: var(-
   <div class="sidebar-divider"></div>
   <div class="sidebar-label">Session</div>
   <div class="step-nav">
+    <button class="step-btn" data-step="8" onclick="goStep(8)"><span class="num">≡</span> History</button>
     <button class="step-btn" onclick="resetAll()"><span class="num">↺</span> Reset</button>
   </div>
 </nav>
@@ -479,8 +495,29 @@ input:checked + .slider::before { transform: translateX(16px); background: var(-
     </div>
   </div>
 
+  <!-- HISTORY -->
+  <div class="page" id="page-8">
+    <div class="page-title">Campaign History</div>
+    <div class="page-sub">Every live send is saved. Delivery reports are kept in storage and were emailed to you when each campaign finished.</div>
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Past Campaigns</span>
+        <button class="btn btn-ghost btn-sm" onclick="loadHistory()">Refresh</button>
+      </div>
+      <div class="panel-body">
+        <div class="table-wrap" id="history-table"><p class="text-dim">Loading…</p></div>
+      </div>
+    </div>
+  </div>
+
 </div>
 </main>
+</div>
+
+<div id="auth-gate">
+  <div class="logo">BulkSMS Sender <span>/ Ultrand.Tech</span></div>
+  <div id="sign-in"></div>
+  <div id="auth-status">Loading…</div>
 </div>
 
 <div id="toast-container"></div>
@@ -490,9 +527,78 @@ input:checked + .slider::before { transform: translateX(16px); background: var(-
 const state = {
   tokenId: '', tokenSecret: '', countryPrefix: '27',
   rows: [], columns: [], phoneCol: '', template: '',
-  testMode: false, results: null, dashboard: null,
+  testMode: false, results: null, dashboard: null, file: null,
 };
 const API = '';
+const SEND_CHUNK_SIZE = 20; // must not exceed MAX_CHUNK in functions/api/campaigns/[id]/send.js
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+// ── AUTH (Clerk) ───────────────────────────────────────────────
+async function initAuth() {
+  const status = document.getElementById('auth-status');
+  try {
+    const cfg = await fetch(`${API}/api/config`).then(r => r.json());
+    const pk = cfg.clerkPublishableKey;
+    if (!pk || pk.includes('REPLACE_ME')) throw new Error('Sign-in is not configured yet (CLERK_PUBLISHABLE_KEY).');
+
+    // The publishable key encodes the Clerk Frontend API host: pk_<env>_<base64(host$)>
+    const frontendApi = atob(pk.split('_')[2]).replace(/\$$/, '');
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = `https://${frontendApi}/npm/@clerk/clerk-js@5/dist/clerk.browser.js`;
+      s.async = true;
+      s.crossOrigin = 'anonymous';
+      s.setAttribute('data-clerk-publishable-key', pk);
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Could not load the sign-in service.'));
+      document.head.appendChild(s);
+    });
+
+    await window.Clerk.load({
+      appearance: {
+        variables: {
+          colorPrimary: '#d4a843', colorBackground: '#12151c', colorText: '#cdd3e0',
+          colorTextSecondary: '#7a8399', colorInputBackground: '#0b0d11', colorInputText: '#cdd3e0',
+        },
+      },
+    });
+    renderAuth();
+    window.Clerk.addListener(renderAuth);
+  } catch (e) {
+    status.textContent = e.message;
+  }
+}
+
+function renderAuth() {
+  const gate = document.getElementById('auth-gate');
+  const signIn = document.getElementById('sign-in');
+  const userButton = document.getElementById('user-button');
+  if (window.Clerk.user) {
+    if (signIn.dataset.mounted) { window.Clerk.unmountSignIn(signIn); delete signIn.dataset.mounted; }
+    if (!userButton.dataset.mounted) { window.Clerk.mountUserButton(userButton); userButton.dataset.mounted = '1'; }
+    gate.classList.add('hidden');
+  } else {
+    if (userButton.dataset.mounted) { window.Clerk.unmountUserButton(userButton); delete userButton.dataset.mounted; }
+    if (!signIn.dataset.mounted) { window.Clerk.mountSignIn(signIn); signIn.dataset.mounted = '1'; }
+    document.getElementById('auth-status').textContent = '';
+    gate.classList.remove('hidden');
+  }
+}
+
+/** fetch() with the Clerk session token attached; returns parsed JSON or throws. */
+async function api(path, { method = 'GET', body, json, raw = false } = {}) {
+  const token = await window.Clerk?.session?.getToken();
+  const headers = { Authorization: `Bearer ${token}` };
+  if (json !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(json); }
+  const r = await fetch(`${API}${path}`, { method, headers, body });
+  if (r.status === 401) { renderAuth(); }
+  if (raw && r.ok) return r;
+  const d = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+  if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`);
+  return d;
+}
+
+initAuth();
 
 // ── NAVIGATION ─────────────────────────────────────────────────
 function goStep(n) {
@@ -508,6 +614,7 @@ function goStep(n) {
   if (n === 4) buildComposeChips();
   if (n === 5) buildBatchPreview();
   if (n === 7) buildDashboard();
+  if (n === 8) loadHistory();
 }
 
 // ── CREDENTIALS ────────────────────────────────────────────────
@@ -526,17 +633,14 @@ async function checkBalance() {
   const chip = document.getElementById('balance-chip');
   chip.textContent = '⚡ Checking...';
   try {
-    const r = await fetch(`${API}/api/balance`, {
+    const d = await api('/api/balance', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tokenId: state.tokenId, tokenSecret: state.tokenSecret }),
+      json: { tokenId: state.tokenId, tokenSecret: state.tokenSecret },
     });
-    const d = await r.json();
-    if (d.error) { toast(d.error, 'error'); chip.textContent = '⚡ Error'; return; }
     chip.style.display = 'flex';
     chip.textContent = `⚡ ${parseFloat(d.credits).toFixed(2)} credits`;
     toast(`Balance: ${d.credits} credits`, 'info');
-  } catch(e) { toast('Balance check failed', 'error'); }
+  } catch(e) { toast(e.message || 'Balance check failed', 'error'); chip.textContent = '⚡ Error'; }
 }
 
 // ── FILE UPLOAD ────────────────────────────────────────────────
@@ -552,19 +656,25 @@ async function handleFile(file) {
   if (!file) return;
   const ext = file.name.split('.').pop().toLowerCase();
   if (!['xlsx','xls','csv'].includes(ext)) { toast('Unsupported file type', 'error'); return; }
+  if (file.size > MAX_FILE_BYTES) { toast('File exceeds the 10 MB limit.', 'error'); return; }
   toast('Parsing file...', 'info');
-  const fd = new FormData(); fd.append('file', file);
   try {
-    const r = await fetch(`${API}/api/parse`, { method: 'POST', body: fd });
-    const d = await r.json();
-    if (d.error) { toast(d.error, 'error'); return; }
-    state.rows = d.rows; state.columns = d.columns; state.results = null; state.dashboard = null;
+    // Parsed in the browser; the original file is archived to storage when a live send starts.
+    const workbook  = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {
+      defval: '',
+      raw:    false,  // All values as strings — preserves leading zeros on phone numbers
+    });
+    if (!rows.length) { toast('Spreadsheet is empty or unreadable.', 'error'); return; }
+    const d = { sheetName, totalRows: rows.length, columns: Object.keys(rows[0]), preview: rows.slice(0, 5), rows };
+    state.rows = d.rows; state.columns = d.columns; state.results = null; state.dashboard = null; state.file = file;
     document.getElementById('row-count-tag').textContent = `${d.totalRows} rows`;
     document.getElementById('col-count-tag').textContent = `${d.columns.length} cols`;
     document.getElementById('parse-result').classList.remove('hidden');
     renderPreviewTable(d.preview, d.columns);
     toast(`Loaded ${d.totalRows} contacts from ${d.sheetName}`, 'success');
-  } catch(e) { toast('Upload failed: ' + e.message, 'error'); }
+  } catch(e) { toast('Could not read file: ' + e.message, 'error'); }
 }
 
 function renderPreviewTable(rows, cols) {
@@ -700,26 +810,97 @@ async function sendMessages() {
   const btn = document.getElementById('send-btn');
   btn.disabled = true; btn.textContent = '⏳ Sending...';
   document.getElementById('progress-wrap').style.display = 'block';
-  setProg(10, 'Authenticating...');
-  try {
-    setProg(30, 'Sending batch to BulkSMS...');
-    const r = await fetch(`${API}/api/send`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tokenId: state.tokenId, tokenSecret: state.tokenSecret,
-        phoneColumn: state.phoneCol, messageTemplate: state.template,
-        rows: state.rows, testMode: state.testMode,
-        countryPrefix: state.countryPrefix,
-      }),
-    });
-    setProg(80, 'Processing response...');
-    const d = await r.json();
-    if (d.error) { toast(d.error, 'error'); resetSendBtn(); return; }
+  setProg(5, 'Preparing...');
+
+  if (!state.tokenId || !state.tokenSecret) { toast('API credentials required.', 'error'); resetSendBtn(); return; }
+  if (!state.phoneCol)                      { toast('Phone column not selected.', 'error'); resetSendBtn(); return; }
+  if (!state.template.trim())               { toast('Message template is empty.', 'error'); resetSendBtn(); return; }
+  if (!state.rows.length)                   { toast('No contacts to send to.', 'error'); resetSendBtn(); return; }
+
+  // Test mode never leaves the browser and uses no credits.
+  if (state.testMode) {
+    const preview = buildMessageModels(state.rows, state.template, state.phoneCol).map(m => ({ to: m.to, body: m.body }));
+    const d = { mode: 'test', count: preview.length, preview };
     state.results = d;
+    setProg(100, 'Done!');
+    setTimeout(() => { buildResults(d); goStep(6); }, 400);
+    return;
+  }
+
+  try {
+    setProg(8, 'Creating campaign...');
+    const fd = new FormData();
+    fd.append('meta', JSON.stringify({
+      template: state.template, phoneColumn: state.phoneCol,
+      countryPrefix: state.countryPrefix, totalRecipients: state.rows.length,
+    }));
+    if (state.file) fd.append('file', state.file);
+    const { id } = await api('/api/campaigns', { method: 'POST', body: fd });
+
+    // Send in chunks so each server request stays small and the bar shows real progress.
+    const d = { mode: 'live', totalSent: 0, totalErrors: 0, results: [], errors: [] };
+    for (let i = 0; i < state.rows.length; i += SEND_CHUNK_SIZE) {
+      const chunk = state.rows.slice(i, i + SEND_CHUNK_SIZE);
+      setProg(10 + Math.round((i / state.rows.length) * 80), `Sending ${i + 1}–${i + chunk.length} of ${state.rows.length}...`);
+      try {
+        const r = await api(`/api/campaigns/${id}/send`, {
+          method: 'POST',
+          json: { tokenId: state.tokenId, tokenSecret: state.tokenSecret, rows: chunk },
+        });
+        d.results.push(...r.results); d.errors.push(...r.errors);
+      } catch (e) {
+        // Don't retry: the request may have partly gone through, and a retry could double-send.
+        chunk.forEach(row => d.errors.push({
+          to: normalizePhone(String(row[state.phoneCol] ?? ''), state.countryPrefix),
+          error: `Request failed, delivery status unknown: ${e.message}`,
+        }));
+      }
+    }
+    d.totalSent = d.results.length; d.totalErrors = d.errors.length;
+    state.results = d;
+
+    setProg(95, 'Saving report...');
+    try {
+      const c = await api(`/api/campaigns/${id}/complete`, { method: 'POST' });
+      if (c.emailedTo) toast(`Report emailed to ${c.emailedTo}`, 'success');
+      else if (c.emailError) toast(`Report saved, but not emailed: ${c.emailError}`, 'error');
+    } catch (e) { toast('Could not save the report: ' + e.message, 'error'); }
+
     setProg(100, 'Done!');
     setTimeout(() => { buildResults(d); goStep(6); }, 600);
   } catch(e) { toast('Send failed: ' + e.message, 'error'); resetSendBtn(); }
+}
+
+// ── HISTORY ────────────────────────────────────────────────────
+async function loadHistory() {
+  const wrap = document.getElementById('history-table');
+  wrap.innerHTML = '<p class="text-dim" style="padding:.75rem;">Loading…</p>';
+  try {
+    const { campaigns } = await api('/api/campaigns');
+    if (!campaigns.length) { wrap.innerHTML = '<p class="text-dim" style="padding:.75rem;">No campaigns yet.</p>'; return; }
+    let html = '<table><thead><tr><th>Date</th><th>File</th><th>Recipients</th><th>Sent</th><th>Errors</th><th>Credits</th><th>Status</th><th>Report</th></tr></thead><tbody>';
+    campaigns.forEach(c => {
+      const statusTag = c.status === 'completed' ? '<span class="tag tag-green">Completed</span>' : '<span class="tag tag-amber">Incomplete</span>';
+      const report = c.has_report
+        ? `<button class="btn btn-ghost btn-sm" data-report="${esc(c.id)}">CSV</button>`
+        : '<span class="text-dim">—</span>';
+      html += `<tr><td class="mono">${esc(new Date(c.created_at).toLocaleString())}</td><td>${esc(c.file_name || '—')}</td>`
+        + `<td class="mono">${c.total_recipients}</td><td class="mono">${c.total_sent}</td><td class="mono">${c.total_errors}</td>`
+        + `<td class="mono">${parseFloat(c.total_credits).toFixed(2)}</td><td>${statusTag}</td><td>${report}</td></tr>`;
+    });
+    wrap.innerHTML = html + '</tbody></table>';
+    wrap.querySelectorAll('button[data-report]').forEach(btn => btn.addEventListener('click', () => downloadReport(btn.dataset.report)));
+  } catch (e) {
+    wrap.innerHTML = '';
+    toast('Could not load history: ' + e.message, 'error');
+  }
+}
+
+async function downloadReport(id) {
+  try {
+    const r = await api(`/api/campaigns/${id}/report`, { raw: true });
+    downloadBlob(await r.blob(), `bulksms-report-${id}.csv`);
+  } catch (e) { toast('Download failed: ' + e.message, 'error'); }
 }
 
 function resetSendBtn() {
@@ -1170,7 +1351,7 @@ function toast(msg, type='info') {
 }
 
 function resetAll() {
-  Object.assign(state, { rows:[], columns:[], phoneCol:'', template:'', results:null, dashboard:null, testMode:false });
+  Object.assign(state, { rows:[], columns:[], phoneCol:'', template:'', results:null, dashboard:null, testMode:false, file:null });
   document.getElementById('file-input').value = '';
   document.getElementById('message-body').value = '';
   document.getElementById('parse-result').classList.add('hidden');

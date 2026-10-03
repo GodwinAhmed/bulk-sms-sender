@@ -1,22 +1,21 @@
 {
   "name": "bulksms-sender",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "description": "Bulk SMS sender on Cloudflare Pages (Clerk, Neon, Resend, R2)",
   "scripts": {
-    "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "wrangler pages dev",
+    "deploy": "wrangler pages deploy",
+    "db:migrate": "node scripts/migrate.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "axios": "^1.18.1",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "jspdf": "^4.2.1",
-    "multer": "^2.2.0",
-    "xlsx": "^0.18.5"
-  }
+    "@clerk/backend": "^3.22.0",
+    "@neondatabase/serverless": "^1.2.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.147.0"
+  },
+  "type": "module"
 }

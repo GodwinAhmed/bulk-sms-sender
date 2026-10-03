@@ -5,3 +5,5 @@ sent-log.json
 .DS_Store
 Thumbs.db
 .gstack/
+.dev.vars
+.wrangler/
